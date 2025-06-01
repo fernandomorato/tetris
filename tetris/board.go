@@ -1,4 +1,4 @@
-package main
+package tetris
 
 import (
 	"fmt"
@@ -17,12 +17,7 @@ type Tetris struct {
 	mux             *sync.RWMutex
 }
 
-type Piece struct {
-	x int
-	y int
-}
-
-func (t *Tetris) init() {
+func (t *Tetris) Init() {
 	t.rows = 20
 	t.columns = 10
 	t.boardLeftOffset = 20
@@ -46,7 +41,7 @@ func (t *Tetris) refresh() {
 			t.hasPendingPiece = true
 		}
 		// update board status
-		t.movePendingPieceDown()
+		t.MovePendingPieceDown()
 		// print board
 		t.printBoard()
 	}
@@ -105,7 +100,7 @@ func (t *Tetris) canPlacePiece(p Piece) bool {
 	return t.isValidPosition(p.x, p.y) && t.board[p.x][p.y] != 1
 }
 
-func (t *Tetris) movePendingPieceRight() {
+func (t *Tetris) MovePendingPieceRight() {
 	newPiece := t.pendingPiece
 	newPiece.y++
 	if t.canPlacePiece(newPiece) {
@@ -113,7 +108,7 @@ func (t *Tetris) movePendingPieceRight() {
 	}
 }
 
-func (t *Tetris) movePendingPieceLeft() {
+func (t *Tetris) MovePendingPieceLeft() {
 	newPiece := t.pendingPiece
 	newPiece.y--
 	if t.canPlacePiece(newPiece) {
@@ -121,7 +116,7 @@ func (t *Tetris) movePendingPieceLeft() {
 	}
 }
 
-func (t *Tetris) movePendingPieceDown() {
+func (t *Tetris) MovePendingPieceDown() {
 	newPiece := t.pendingPiece
 	newPiece.x++
 	if t.canPlacePiece(newPiece) {
