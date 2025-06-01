@@ -14,7 +14,7 @@ type Tetris struct {
 	pendingPiece    Piece
 	hasPendingPiece bool
 	ticker          *time.Ticker
-	mux             *sync.Mutex
+	mux             *sync.RWMutex
 }
 
 type Piece struct {
@@ -31,7 +31,7 @@ func (t *Tetris) init() {
 		t.board[i] = make([]int, t.columns)
 	}
 	t.ticker = time.NewTicker(100 * time.Millisecond)
-	t.mux = &sync.Mutex{}
+	t.mux = &sync.RWMutex{}
 	go t.refresh()
 }
 
@@ -53,49 +53,52 @@ func (t *Tetris) refresh() {
 }
 
 func (t *Tetris) printBoard() {
+	board := ""
 	for i := range t.rows {
-		t.printLine(i)
+		board += t.printLine(i)
 	}
-	t.printLastLine()
+	board += t.printLastLine()
+	fmt.Println(board)
 }
 
-func (t *Tetris) printLine(i int) {
-	t.printOffset()
-	fmt.Print("<!")
+func (t *Tetris) printLine(i int) string {
+	line := ""
+	line += t.printOffset()
+	line += "<!"
+	t.mux.RLock()
 	for j := range t.columns {
 		cell := " ."
 		if t.board[i][j] == 1 {
 			cell = "[]"
 		}
-		fmt.Printf("%s", cell)
+		line += fmt.Sprintf("%s", cell)
 	}
-	fmt.Println("!>")
+	t.mux.RUnlock()
+	line += "!>\n"
+	return line
 }
 
-func (t *Tetris) printLastLine() {
-	t.printOffset()
-	fmt.Print("  ")
+func (t *Tetris) printLastLine() string {
+	line := ""
+	line += t.printOffset()
+	line += "  "
 	for range t.columns {
-		fmt.Print("\\/")
+		line += "\\/"
 	}
-	fmt.Println("  ")
+	line += "  \n"
+	return line
 }
 
-func (t *Tetris) printOffset() {
+func (t *Tetris) printOffset() string {
+	offset := ""
 	for range t.boardLeftOffset {
-		fmt.Print("  ")
+		offset += fmt.Sprint("  ")
 	}
+	return offset
 }
 
 func (t *Tetris) isValidPosition(x int, y int) bool {
 	return 0 <= x && x < t.rows && 0 <= y && y < t.columns
-}
-
-func (t *Tetris) canDropPendingPiece() bool {
-	if t.isValidPosition(t.pendingPiece.x+1, t.pendingPiece.y) {
-		return t.board[t.pendingPiece.x+1][t.pendingPiece.y] != 1
-	}
-	return false
 }
 
 func (t *Tetris) canPlacePiece(p Piece) bool {
@@ -106,11 +109,7 @@ func (t *Tetris) movePendingPieceRight() {
 	newPiece := t.pendingPiece
 	newPiece.y++
 	if t.canPlacePiece(newPiece) {
-		t.hasPendingPiece = true
-		t.setBoardPosition(t.pendingPiece, 0)
-		t.setBoardPosition(newPiece, 1)
-		t.pendingPiece = newPiece
-			t.hasPendingPiece = true
+		t.updatePendingPiece(newPiece)
 	}
 }
 
@@ -118,10 +117,7 @@ func (t *Tetris) movePendingPieceLeft() {
 	newPiece := t.pendingPiece
 	newPiece.y--
 	if t.canPlacePiece(newPiece) {
-		t.hasPendingPiece = true
-		t.setBoardPosition(t.pendingPiece, 0)
-		t.setBoardPosition(newPiece, 1)
-		t.pendingPiece = newPiece
+		t.updatePendingPiece(newPiece)
 	}
 }
 
@@ -129,13 +125,17 @@ func (t *Tetris) movePendingPieceDown() {
 	newPiece := t.pendingPiece
 	newPiece.x++
 	if t.canPlacePiece(newPiece) {
-		t.hasPendingPiece = true
-		t.setBoardPosition(t.pendingPiece, 0)
-		t.setBoardPosition(newPiece, 1)
-		t.pendingPiece = newPiece
+		t.updatePendingPiece(newPiece)
 	} else {
 		t.hasPendingPiece = false
 	}
+}
+
+func (t *Tetris) updatePendingPiece(newPiece Piece) {
+	t.hasPendingPiece = true
+	t.setBoardPosition(t.pendingPiece, 0)
+	t.setBoardPosition(newPiece, 1)
+	t.pendingPiece = newPiece
 }
 
 func (t *Tetris) setBoardPosition(p Piece, value int) {
