@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -13,6 +14,7 @@ type Tetris struct {
 	pendingPiece    Piece
 	hasPendingPiece bool
 	ticker          *time.Ticker
+	mux             *sync.Mutex
 }
 
 type Piece struct {
@@ -28,7 +30,8 @@ func (t *Tetris) init() {
 	for i := range t.rows {
 		t.board[i] = make([]int, t.columns)
 	}
-	t.ticker = time.NewTicker(250 * time.Millisecond)
+	t.ticker = time.NewTicker(100 * time.Millisecond)
+	t.mux = &sync.Mutex{}
 	go t.refresh()
 }
 
@@ -43,11 +46,7 @@ func (t *Tetris) refresh() {
 			t.hasPendingPiece = true
 		}
 		// update board status
-		if t.canDropPendingPiece() {
-			t.dropPendingPiece()
-		} else {
-			t.hasPendingPiece = false
-		}
+		t.movePendingPieceDown()
 		// print board
 		t.printBoard()
 	}
@@ -93,29 +92,56 @@ func (t *Tetris) isValidPosition(x int, y int) bool {
 }
 
 func (t *Tetris) canDropPendingPiece() bool {
-	if t.isValidPosition(t.pendingPiece.x + 1, t.pendingPiece.y) {
-		return t.board[t.pendingPiece.x + 1][t.pendingPiece.y] != 1
+	if t.isValidPosition(t.pendingPiece.x+1, t.pendingPiece.y) {
+		return t.board[t.pendingPiece.x+1][t.pendingPiece.y] != 1
 	}
 	return false
 }
 
-func (t *Tetris) dropPendingPiece() {
-	newPendingPiece := t.pendingPiece
-	newPendingPiece.x++
-	t.removePiece(t.pendingPiece)
-	t.putPiece(newPendingPiece)
-	t.pendingPiece = newPendingPiece
+func (t *Tetris) canPlacePiece(p Piece) bool {
+	return t.isValidPosition(p.x, p.y) && t.board[p.x][p.y] != 1
 }
 
-// maybe parametrize these two functions
-func (t *Tetris) removePiece(p Piece) {
-	if t.isValidPosition(p.x, p.y) {
-		t.board[p.x][p.y] = 0
+func (t *Tetris) movePendingPieceRight() {
+	newPiece := t.pendingPiece
+	newPiece.y++
+	if t.canPlacePiece(newPiece) {
+		t.hasPendingPiece = true
+		t.setBoardPosition(t.pendingPiece, 0)
+		t.setBoardPosition(newPiece, 1)
+		t.pendingPiece = newPiece
+			t.hasPendingPiece = true
 	}
 }
 
-func (t *Tetris) putPiece(p Piece) {
+func (t *Tetris) movePendingPieceLeft() {
+	newPiece := t.pendingPiece
+	newPiece.y--
+	if t.canPlacePiece(newPiece) {
+		t.hasPendingPiece = true
+		t.setBoardPosition(t.pendingPiece, 0)
+		t.setBoardPosition(newPiece, 1)
+		t.pendingPiece = newPiece
+	}
+}
+
+func (t *Tetris) movePendingPieceDown() {
+	newPiece := t.pendingPiece
+	newPiece.x++
+	if t.canPlacePiece(newPiece) {
+		t.hasPendingPiece = true
+		t.setBoardPosition(t.pendingPiece, 0)
+		t.setBoardPosition(newPiece, 1)
+		t.pendingPiece = newPiece
+	} else {
+		t.hasPendingPiece = false
+	}
+}
+
+func (t *Tetris) setBoardPosition(p Piece, value int) {
 	if t.isValidPosition(p.x, p.y) {
-		t.board[p.x][p.y] = 1
+		t.mux.Lock()
+		t.board[p.x][p.y] = value
+		t.mux.Unlock()
 	}
 }
