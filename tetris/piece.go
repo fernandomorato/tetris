@@ -1,6 +1,6 @@
 package tetris
 
-type Piece [4][2]int
+type Piece [4]Position
 
 var Tetrominoes = [7]Piece{
 	{ // [][][][]
@@ -53,4 +53,20 @@ var Tetrominoes = [7]Piece{
 	},
 }
 
-
+func (p *Piece) rotation() Piece {
+	cx := 1.5
+	cy := 1.5
+	if *p == Tetrominoes[5] {
+		return *p
+	} else if *p == Tetrominoes[0] {
+		cx = 1.0
+		cy = 1.0
+	}
+	// Rotation: (x, y) -> (y, -x), centered on (cx, cy)
+	newPiece := Piece{}
+	for i := range p {
+		newPiece[i].x = int(float64(p[i].y) - cy + cx)
+		newPiece[i].y = int(-(float64(p[i].x) - cx) + cy)
+	}
+	return newPiece
+}

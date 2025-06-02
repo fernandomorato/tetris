@@ -8,14 +8,20 @@ import (
 )
 
 type Tetris struct {
-	rows            int
-	columns         int
-	boardLeftOffset int
-	board           [][]int
-	pendingPiece    Piece
-	hasPendingPiece bool
-	ticker          *time.Ticker
-	mux             *sync.RWMutex
+	rows                 int
+	columns              int
+	boardLeftOffset      int
+	board                [][]int
+	pendingPiece         Piece
+	pendingPiecePosition Position
+	hasPendingPiece      bool
+	ticker               *time.Ticker
+	mux                  *sync.RWMutex
+}
+
+type Position struct {
+	x int
+	y int
 }
 
 func (t *Tetris) Init() {
@@ -33,28 +39,21 @@ func (t *Tetris) Init() {
 
 func (t *Tetris) refresh() {
 	for ; ; <-t.ticker.C {
-		// if has no pending piece, create one at -1, 4
+		// if has no pending piece, spawns new piece
 		if !t.hasPendingPiece {
 			t.spawnNewPiece()
-			t.hasPendingPiece = true
 		}
 		// update board status
-		ok := t.MovePendingPieceDown()
-		if !ok {
-			t.hasPendingPiece = false
-		}
-		// print board
+		t.hasPendingPiece = t.MovePendingPieceDown()
 		t.printBoard()
 	}
 }
 
 func (t *Tetris) spawnNewPiece() {
-	// starts at -2, 3
+	// new pieces starts at position -2, 3
 	t.pendingPiece = Tetrominoes[rand.Intn(len(Tetrominoes))]
-	for i := range t.pendingPiece {
-		t.pendingPiece[i][0] -= 2
-		t.pendingPiece[i][1] += 3
-	}
+	t.pendingPiecePosition = Position{x: -2, y: 3}
+	t.hasPendingPiece = true
 }
 
 func (t *Tetris) printBoard() {
@@ -102,17 +101,18 @@ func (t *Tetris) printOffset() string {
 	return offset
 }
 
-func (t *Tetris) isDrawablePosition(x int, y int) bool {
-	return x < t.rows && 0 <= y && y < t.columns
+func (t *Tetris) isDrawablePosition(p Position) bool {
+	return p.x < t.rows && 0 <= p.y && p.y < t.columns
 }
 
-func (t *Tetris) isValidPosition(x int, y int) bool {
-	return 0 <= x && x < t.rows && 0 <= y && y < t.columns
+func (t *Tetris) isValidPosition(p Position) bool {
+	return 0 <= p.x && p.x < t.rows && 0 <= p.y && p.y < t.columns
 }
 
-func (t *Tetris) canPlacePiece(p Piece) bool {
+func (t *Tetris) canPlacePiece(p Piece, pos Position) bool {
 	for i := range p {
-		if !t.isDrawablePosition(p[i][0], p[i][1]) || (t.isValidPosition(p[i][0], p[i][1]) && t.board[p[i][0]][p[i][1]] == 1) {
+		newPosition := Position{p[i].x + pos.x, p[i].y + pos.y}
+		if !t.isDrawablePosition(newPosition) || (t.isValidPosition(newPosition) && t.board[newPosition.x][newPosition.y] == 1) {
 			return false
 		}
 	}
@@ -120,54 +120,48 @@ func (t *Tetris) canPlacePiece(p Piece) bool {
 }
 
 func (t *Tetris) RotatePiece() bool {
-	newPiece := t.pendingPiece
-	// for i := range newPiece {
-	// 	newPiece[i][1]--
-	// }
-	return t.updatePendingPiece(newPiece)
+	newPiece := t.pendingPiece.rotation()
+	return t.updatePendingPiece(newPiece, t.pendingPiecePosition)
 }
 
 func (t *Tetris) MovePendingPieceRight() bool {
-	newPiece := t.pendingPiece
-	for i := range newPiece {
-		newPiece[i][1]++
-	}
-	return t.updatePendingPiece(newPiece)
+	newPosition := t.pendingPiecePosition
+	newPosition.y++
+	return t.updatePendingPiece(t.pendingPiece, newPosition)
 }
 
 func (t *Tetris) MovePendingPieceLeft() bool {
-	newPiece := t.pendingPiece
-	for i := range newPiece {
-		newPiece[i][1]--
-	}
-	return t.updatePendingPiece(newPiece)
+	newPosition := t.pendingPiecePosition
+	newPosition.y--
+	return t.updatePendingPiece(t.pendingPiece, newPosition)
 }
 
 func (t *Tetris) MovePendingPieceDown() bool {
-	newPiece := t.pendingPiece
-	for i := range newPiece {
-		newPiece[i][0]++
-	}
-	return t.updatePendingPiece(newPiece)
+	newPosition := t.pendingPiecePosition
+	newPosition.x++
+	return t.updatePendingPiece(t.pendingPiece, newPosition)
 }
 
-func (t *Tetris) updatePendingPiece(newPiece Piece) bool{
+func (t *Tetris) updatePendingPiece(newPiece Piece, newPosition Position) bool {
 	ok := false
-	t.drawPiece(t.pendingPiece, 0)
-	if t.canPlacePiece(newPiece) {
+	t.drawPendingPiece(0)
+	if t.canPlacePiece(newPiece, newPosition) {
 		ok = true
 		t.pendingPiece = newPiece
+		t.pendingPiecePosition = newPosition
 		t.hasPendingPiece = true
 	}
-	t.drawPiece(t.pendingPiece, 1)
+	t.drawPendingPiece(1)
 	return ok
 }
 
-func (t *Tetris) drawPiece(p Piece, value int) {
+func (t *Tetris) drawPendingPiece(value int) {
+	p := t.pendingPiece
+	pos := t.pendingPiecePosition
 	for i := range p {
-		if t.isValidPosition(p[i][0], p[i][1]) {
+		if t.isValidPosition(Position{x: pos.x + p[i].x, y: pos.y + p[i].y}) {
 			t.mux.Lock()
-			t.board[p[i][0]][p[i][1]] = value
+			t.board[pos.x+p[i].x][pos.y+p[i].y] = value
 			t.mux.Unlock()
 		}
 	}

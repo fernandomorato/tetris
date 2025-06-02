@@ -24,7 +24,7 @@ func main() {
 		} else if ch == 106 { // j - down
 			t.MovePendingPieceDown()
 		} else if ch == 107 { // k
-			// move up -> rotate
+			t.RotatePiece()
 		}
 	}
 }
