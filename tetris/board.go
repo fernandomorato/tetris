@@ -32,15 +32,18 @@ func (t *Tetris) Init() {
 	for i := range t.rows {
 		t.board[i] = make([]int, t.columns)
 	}
-	t.ticker = time.NewTicker(100 * time.Millisecond)
+	t.ticker = time.NewTicker(200 * time.Millisecond)
 	t.mux = &sync.RWMutex{}
 	go t.refresh()
 }
 
 func (t *Tetris) refresh() {
 	for ; ; <-t.ticker.C {
-		// if has no pending piece, spawns new piece
+		// if has no pending piece:
+		// 1 - check if there are completed lines and update the board accordingly
+		// 2 - spawns new piece
 		if !t.hasPendingPiece {
+			t.processCompletedLines()
 			t.spawnNewPiece()
 		}
 		// update board status
@@ -162,6 +165,45 @@ func (t *Tetris) drawPendingPiece(value int) {
 		if t.isValidPosition(Position{x: pos.x + p[i].x, y: pos.y + p[i].y}) {
 			t.mux.Lock()
 			t.board[pos.x+p[i].x][pos.y+p[i].y] = value
+			t.mux.Unlock()
+		}
+	}
+}
+
+func (t * Tetris) processCompletedLines() {
+	for i := t.rows - 1; i >= 0; i-- {
+		filled := 0
+		for j := range t.columns {
+			filled += t.board[i][j]
+		}
+		if filled == t.columns {
+			t.mux.Lock()
+			for j := range t.columns {
+				t.board[i][j] = 0
+			}
+			t.mux.Unlock()
+		}
+	}
+
+	// drop lines
+	for i := t.rows - 2; i >= 0; i-- {
+		for ni := i + 1; ni < t.rows; ni++ {
+			isBelowEmpty := true
+			for j := 0; j < t.columns && isBelowEmpty; j++ {
+				t.mux.RLock()
+				if t.board[ni][j] == 1 {
+					isBelowEmpty = false
+				}
+				t.mux.RUnlock()
+			}
+			if !isBelowEmpty {
+				break
+			}
+			t.mux.Lock()
+			for j := range t.columns {
+				t.board[ni][j] = t.board[i][j]
+				t.board[i][j] = 0
+			}
 			t.mux.Unlock()
 		}
 	}
