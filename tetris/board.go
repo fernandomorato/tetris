@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+const KeyUp = 107
+const KeyDown = 106
+const KeyLeft = 104
+const KeyRight = 108
+
 type Tetris struct {
 	rows                 int
 	columns              int
@@ -47,7 +52,7 @@ func (t *Tetris) refresh() {
 			t.spawnNewPiece()
 		}
 		// update board status
-		t.hasPendingPiece = t.MovePendingPieceDown()
+		t.hasPendingPiece = t.MovePendingPiece(KeyDown)
 		t.printBoard()
 	}
 }
@@ -122,27 +127,22 @@ func (t *Tetris) canPlacePiece(p Piece, pos Position) bool {
 	return true
 }
 
-func (t *Tetris) RotatePiece() bool {
-	newPiece := t.pendingPiece.rotation()
-	return t.updatePendingPiece(newPiece, t.pendingPiecePosition)
-}
-
-func (t *Tetris) MovePendingPieceRight() bool {
+func (t *Tetris) MovePendingPiece(key int) bool {
+	newPiece := t.pendingPiece
 	newPosition := t.pendingPiecePosition
-	newPosition.y++
-	return t.updatePendingPiece(t.pendingPiece, newPosition)
-}
-
-func (t *Tetris) MovePendingPieceLeft() bool {
-	newPosition := t.pendingPiecePosition
-	newPosition.y--
-	return t.updatePendingPiece(t.pendingPiece, newPosition)
-}
-
-func (t *Tetris) MovePendingPieceDown() bool {
-	newPosition := t.pendingPiecePosition
-	newPosition.x++
-	return t.updatePendingPiece(t.pendingPiece, newPosition)
+	switch key {
+	case KeyUp:
+		newPiece = newPiece.rotation()
+	case KeyDown:
+		newPosition.x++
+	case KeyLeft:
+		newPosition.y--
+	case KeyRight:
+		newPosition.y++
+	default:
+		return false
+	}
+	return t.updatePendingPiece(newPiece, newPosition)
 }
 
 func (t *Tetris) updatePendingPiece(newPiece Piece, newPosition Position) bool {
@@ -155,6 +155,9 @@ func (t *Tetris) updatePendingPiece(newPiece Piece, newPosition Position) bool {
 		t.hasPendingPiece = true
 	}
 	t.drawPendingPiece(1)
+	if ok {
+		t.printBoard()
+	}
 	return ok
 }
 
@@ -170,7 +173,7 @@ func (t *Tetris) drawPendingPiece(value int) {
 	}
 }
 
-func (t * Tetris) processCompletedLines() {
+func (t *Tetris) processCompletedLines() {
 	for i := t.rows - 1; i >= 0; i-- {
 		filled := 0
 		for j := range t.columns {

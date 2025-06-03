@@ -17,14 +17,7 @@ func main() {
 		}
 		if key == keyboard.KeyCtrlC {
 			os.Exit(0)
-		} else if ch == 104 { // h - left
-			t.MovePendingPieceLeft()
-		} else if ch == 108 { // l - right
-			t.MovePendingPieceRight()
-		} else if ch == 106 { // j - down
-			t.MovePendingPieceDown()
-		} else if ch == 107 { // k
-			t.RotatePiece()
 		}
+		t.MovePendingPiece(int(ch))
 	}
 }

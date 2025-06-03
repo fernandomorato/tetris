@@ -3,7 +3,7 @@ package tetris
 type Piece [4]Position
 
 var Tetrominoes = [7]Piece{
-	{ 
+	{
 		//  . . . .
 		//  . . . .
 		// [][][][]
@@ -13,7 +13,7 @@ var Tetrominoes = [7]Piece{
 		{2, 2},
 		{2, 3},
 	},
-	{ 
+	{
 		//  . .[]
 		// [][][]
 		//  . . .
@@ -22,7 +22,7 @@ var Tetrominoes = [7]Piece{
 		{1, 1},
 		{1, 2},
 	},
-	{ 
+	{
 		//  .[] .
 		// [][][]
 		//  . . .
@@ -31,7 +31,7 @@ var Tetrominoes = [7]Piece{
 		{1, 1},
 		{1, 2},
 	},
-	{ 
+	{
 		// [] . .
 		// [][][]
 		//  . . .
@@ -40,7 +40,7 @@ var Tetrominoes = [7]Piece{
 		{1, 1},
 		{1, 2},
 	},
-	{ 
+	{
 		// [][] .
 		//  .[][]
 		//  . . .
@@ -56,7 +56,7 @@ var Tetrominoes = [7]Piece{
 		{1, 0},
 		{1, 1},
 	},
-	{ 
+	{
 		//  .[][]
 		// [][] .
 		//  . . .
