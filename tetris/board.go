@@ -174,6 +174,7 @@ func (t *Tetris) drawPendingPiece(value int) {
 }
 
 func (t *Tetris) processCompletedLines() {
+	// set completed lines to zero
 	for i := t.rows - 1; i >= 0; i-- {
 		filled := 0
 		for j := range t.columns {
@@ -204,8 +205,8 @@ func (t *Tetris) processCompletedLines() {
 			}
 			t.mux.Lock()
 			for j := range t.columns {
-				t.board[ni][j] = t.board[i][j]
-				t.board[i][j] = 0
+				t.board[ni][j] = t.board[ni-1][j]
+				t.board[ni-1][j] = 0
 			}
 			t.mux.Unlock()
 		}
