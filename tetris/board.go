@@ -7,10 +7,14 @@ import (
 	"time"
 )
 
-const KeyUp = 107
-const KeyDown = 106
-const KeyLeft = 104
-const KeyRight = 108
+const KeyW = 119
+const KeyA = 97
+const KeyS = 115
+const KeyD = 100
+const KeyK = 107
+const KeyJ = 106
+const KeyH = 104
+const KeyL = 108
 
 type Tetris struct {
 	rows                 int
@@ -52,7 +56,7 @@ func (t *Tetris) refresh() {
 			t.spawnNewPiece()
 		}
 		// update board status
-		t.hasPendingPiece = t.MovePendingPiece(KeyDown)
+		t.hasPendingPiece = t.MovePendingPiece(-1)
 		t.printBoard()
 	}
 }
@@ -131,13 +135,13 @@ func (t *Tetris) MovePendingPiece(key int) bool {
 	newPiece := t.pendingPiece
 	newPosition := t.pendingPiecePosition
 	switch key {
-	case KeyUp:
+	case KeyK, KeyW:
 		newPiece = newPiece.rotation()
-	case KeyDown:
+	case KeyJ, KeyS, -1:
 		newPosition.x++
-	case KeyLeft:
+	case KeyH, KeyA:
 		newPosition.y--
-	case KeyRight:
+	case KeyL, KeyD:
 		newPosition.y++
 	default:
 		return false
