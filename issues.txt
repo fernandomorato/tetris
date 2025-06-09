@@ -1,3 +1,4 @@
 ISSUES
 
-1 - It does not show the next piece to appear
+1 - It is not responsive
+2 - It uses a lot of the terminal output history
