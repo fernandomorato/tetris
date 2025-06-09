@@ -29,7 +29,8 @@ type Tetris struct {
 	columns         int
 	boardLeftOffset int
 	board           [][]int
-	piece           Piece
+	currentPiece    Piece
+	nextPiece       Piece
 	hasPendingPiece bool
 	ticker          *time.Ticker
 	mux             *sync.Mutex
@@ -45,6 +46,7 @@ func (t *Tetris) Init() {
 	}
 	t.ticker = time.NewTicker(RefreshRateMs * time.Millisecond)
 	t.mux = &sync.Mutex{}
+	t.getNextPiece()
 	go t.refresh()
 	for {
 		ch, key, err := keyboard.GetSingleKey()
@@ -60,6 +62,13 @@ func (t *Tetris) Init() {
 			t.mux.Unlock()
 		}
 	}
+}
+
+func (t *Tetris) getNextPiece() {
+	var newPiece Piece
+	index := rand.Intn(len(Tetrominoes))
+	newPiece = append(newPiece, Tetrominoes[index]...)
+	t.nextPiece = newPiece
 }
 
 func (t *Tetris) refresh() {
@@ -103,7 +112,33 @@ func (t *Tetris) printLine(i int) string {
 		}
 		line += fmt.Sprintf("%s", cell)
 	}
-	line += "!>\n"
+	line += "!>"
+	if i >= 7 && i <= 11 {
+		line += t.printNextPiece(i)
+	}
+	line += "\n"
+	return line
+}
+
+func (t *Tetris) printNextPiece(i int) string {
+	line := "  "
+	if i == 7 {
+		line += "   NEXT"
+	} else {
+		for j := range 5 {
+			foundPosition := false
+			for _, pos := range t.nextPiece {
+				if i-9 == pos.x && j == pos.y - 3 {
+					foundPosition = true
+				}
+			}
+			if foundPosition {
+				line += "[]"
+			} else {
+				line += " ."
+			}
+		}
+	}
 	return line
 }
 
@@ -155,7 +190,7 @@ func (t *Tetris) MovePiece(key int) bool {
 		return false
 	}
 	var newPiece Piece
-	newPiece = append(newPiece, t.piece...)
+	newPiece = append(newPiece, t.currentPiece...)
 	switch key {
 	case KeyK, KeyW:
 		newPiece.rotate()
@@ -172,10 +207,10 @@ func (t *Tetris) MovePiece(key int) bool {
 func (t *Tetris) spawnNewPiece() bool {
 	// Spawns a random piece. The spawn position of each Tetromino is fixed
 	var newPiece Piece
-	index := rand.Intn(len(Tetrominoes))
-	newPiece = append(newPiece, Tetrominoes[index]...)
+	newPiece = append(newPiece, t.nextPiece...)
 	ok := t.canPlacePiece(newPiece)
-	t.piece = newPiece
+	t.currentPiece = newPiece
+	t.getNextPiece()
 	t.drawPiece(1)
 	t.printBoard()
 	return ok
@@ -185,7 +220,7 @@ func (t *Tetris) updatePiece(newPiece Piece) bool {
 	ok := false
 	t.drawPiece(0)
 	if ok = t.canDrawPiece(newPiece); ok {
-		t.piece = newPiece
+		t.currentPiece = newPiece
 	}
 	t.drawPiece(1)
 	if ok {
@@ -195,7 +230,7 @@ func (t *Tetris) updatePiece(newPiece Piece) bool {
 }
 
 func (t *Tetris) drawPiece(value int) {
-	for _, pos := range t.piece {
+	for _, pos := range t.currentPiece {
 		if t.isValidPosition(pos) {
 			t.board[pos.x][pos.y] = value
 		}
