@@ -1,4 +1,3 @@
 ISSUES
 
-1 - It needs a game over
-2 - It does not show the next piece to appear
+1 - It does not show the next piece to appear

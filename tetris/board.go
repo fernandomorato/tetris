@@ -22,6 +22,8 @@ const (
 	RefreshRateMs = 250
 )
 
+var Tetrominoes = [7]Piece{I, L, T, J, Z, O, S}
+
 type Tetris struct {
 	rows            int
 	columns         int
@@ -31,11 +33,6 @@ type Tetris struct {
 	hasPendingPiece bool
 	ticker          *time.Ticker
 	mux             *sync.Mutex
-}
-
-type Position struct {
-	x int
-	y int
 }
 
 func (t *Tetris) Init() {
@@ -58,7 +55,9 @@ func (t *Tetris) Init() {
 		case keyboard.KeyCtrlC:
 			os.Exit(0)
 		default:
+			t.mux.Lock()
 			t.MovePiece(int(ch))
+			t.mux.Unlock()
 		}
 	}
 }
@@ -68,27 +67,20 @@ func (t *Tetris) refresh() {
 		// if has no pending piece:
 		// 1 - check if there are completed lines and update the board accordingly
 		// 2 - spawns new piece
+		t.mux.Lock()
 		if !t.hasPendingPiece {
 			t.processCompletedLines()
-			t.spawnNewPiece()
+			ok := t.spawnNewPiece()
+			if !ok {
+				fmt.Println("game over")
+				os.Exit(0)
+			}
+			t.hasPendingPiece = ok
 		} else {
 			t.hasPendingPiece = t.MovePiece(KeyJ)
 		}
-		t.printBoard()
+		t.mux.Unlock()
 	}
-}
-
-func (t *Tetris) spawnNewPiece() {
-	newPiece := Tetrominoes[rand.Intn(len(Tetrominoes))]
-	offset := 4
-	if newPiece == I {
-		offset--
-	}
-	for i := range newPiece {
-		newPiece[i].y += offset
-	}
-	t.piece = newPiece
-	t.hasPendingPiece = true
 }
 
 func (t *Tetris) printBoard() {
@@ -138,6 +130,17 @@ func (t *Tetris) isValidPosition(p Position) bool {
 	return 0 <= p.x && p.x < t.rows && 0 <= p.y && p.y < t.columns
 }
 
+func (t *Tetris) canDrawPiece(p Piece) bool {
+	for i := range p {
+		cond1 := !t.isValidPosition(p[i]) && (t.columns <= p[i].y || p[i].y < 0 || p[i].x >= t.rows)
+		cond2 := t.isValidPosition(p[i]) && t.board[p[i].x][p[i].y] == 1
+		if cond1 || cond2 {
+			return false
+		}
+	}
+	return true
+}
+
 func (t *Tetris) canPlacePiece(p Piece) bool {
 	for i := range p {
 		if !t.isValidPosition(p[i]) || t.board[p[i].x][p[i].y] == 1 {
@@ -148,9 +151,11 @@ func (t *Tetris) canPlacePiece(p Piece) bool {
 }
 
 func (t *Tetris) MovePiece(key int) bool {
-	newPiece := t.piece
-	t.mux.Lock()
-	defer t.mux.Unlock()
+	if !t.hasPendingPiece {
+		return false
+	}
+	var newPiece Piece
+	newPiece = append(newPiece, t.piece...)
 	switch key {
 	case KeyK, KeyW:
 		newPiece.rotate()
@@ -164,10 +169,22 @@ func (t *Tetris) MovePiece(key int) bool {
 	return t.updatePiece(newPiece)
 }
 
+func (t *Tetris) spawnNewPiece() bool {
+	// Spawns a random piece. The spawn position of each Tetromino is fixed
+	var newPiece Piece
+	index := rand.Intn(len(Tetrominoes))
+	newPiece = append(newPiece, Tetrominoes[index]...)
+	ok := t.canPlacePiece(newPiece)
+	t.piece = newPiece
+	t.drawPiece(1)
+	t.printBoard()
+	return ok
+}
+
 func (t *Tetris) updatePiece(newPiece Piece) bool {
 	ok := false
 	t.drawPiece(0)
-	if ok = t.canPlacePiece(newPiece); ok {
+	if ok = t.canDrawPiece(newPiece); ok {
 		t.piece = newPiece
 	}
 	t.drawPiece(1)
@@ -178,19 +195,16 @@ func (t *Tetris) updatePiece(newPiece Piece) bool {
 }
 
 func (t *Tetris) drawPiece(value int) {
-	p := t.piece
-	for i := range p {
-		if t.isValidPosition(p[i]) {
-			t.board[p[i].x][p[i].y] = value
+	for _, pos := range t.piece {
+		if t.isValidPosition(pos) {
+			t.board[pos.x][pos.y] = value
 		}
 	}
 }
 
 func (t *Tetris) processCompletedLines() {
 	// set completed lines to zero
-	t.mux.Lock()
-	defer t.mux.Unlock()
-	for i := t.rows - 1; i >= 0; i-- {
+	for i := range t.rows {
 		filled := 0
 		for j := range t.columns {
 			filled += t.board[i][j]
@@ -199,24 +213,10 @@ func (t *Tetris) processCompletedLines() {
 			for j := range t.columns {
 				t.board[i][j] = 0
 			}
-		}
-	}
-
-	// drop lines
-	for i := t.rows - 2; i >= 0; i-- {
-		for ni := i + 1; ni < t.rows; ni++ {
-			isBelowEmpty := true
-			for j := 0; j < t.columns && isBelowEmpty; j++ {
-				if t.board[ni][j] == 1 {
-					isBelowEmpty = false
+			for ni := i - 1; ni >= 0; ni-- {
+				for j := range t.columns {
+					t.board[ni][j], t.board[ni+1][j] = t.board[ni+1][j], t.board[ni][j]
 				}
-			}
-			if !isBelowEmpty {
-				break
-			}
-			for j := range t.columns {
-				t.board[ni][j] = t.board[ni-1][j]
-				t.board[ni-1][j] = 0
 			}
 		}
 	}
