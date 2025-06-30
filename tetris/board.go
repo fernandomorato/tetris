@@ -2,12 +2,13 @@ package tetris
 
 import (
 	"fmt"
+	"log"
 	"math/rand"
 	"os"
 	"sync"
 	"time"
 
-	"github.com/eiannone/keyboard"
+	"github.com/gdamore/tcell/v2"
 )
 
 const (
@@ -34,9 +35,11 @@ type Tetris struct {
 	hasPendingPiece bool
 	ticker          *time.Ticker
 	mux             *sync.Mutex
+	screen          tcell.Screen
+	defStyle        tcell.Style
 }
 
-func (t *Tetris) Init() {
+func (t *Tetris) Init(screen tcell.Screen) {
 	t.rows = 20
 	t.columns = 10
 	t.boardLeftOffset = 20
@@ -46,20 +49,38 @@ func (t *Tetris) Init() {
 	}
 	t.ticker = time.NewTicker(RefreshRateMs * time.Millisecond)
 	t.mux = &sync.Mutex{}
+	t.screen = screen
+	t.defStyle = tcell.StyleDefault.Background(tcell.ColorBlack).Foreground(tcell.ColorWhite)
 	t.getNextPiece()
+
+	if err := t.screen.Init(); err != nil {
+		log.Fatalf("%+v", err)
+	}
+
+	// Set default text style
+	t.screen.SetStyle(t.defStyle)
+	// Clear t.screen
+	t.screen.Clear()
+
 	go t.refresh()
 	for {
-		ch, key, err := keyboard.GetSingleKey()
-		if err != nil {
-			panic(err)
-		}
-		switch key {
-		case keyboard.KeyCtrlC:
-			os.Exit(0)
-		default:
-			t.mux.Lock()
-			t.MovePiece(int(ch))
-			t.mux.Unlock()
+
+		// Poll event
+		ev := t.screen.PollEvent()
+
+		// Process event
+		switch ev := ev.(type) {
+		case *tcell.EventResize:
+			t.screen.Sync()
+		case *tcell.EventKey:
+			if ev.Key() == tcell.KeyEscape || ev.Key() == tcell.KeyCtrlC {
+				t.screen.Fini()
+				os.Exit(0)
+			} else {
+				t.mux.Lock()
+				t.MovePiece(ev.Key())
+				t.mux.Unlock()
+			}
 		}
 	}
 }
@@ -81,24 +102,45 @@ func (t *Tetris) refresh() {
 			t.processCompletedLines()
 			ok := t.spawnNewPiece()
 			if !ok {
-				fmt.Println("game over")
+				t.screen.Clear()
+				func(s string) {
+					for i, ch := range []rune(s) {
+						t.screen.SetContent(i, 0, ch, nil, tcell.StyleDefault.Background(tcell.ColorBlack).Foreground(tcell.ColorWhite))
+					}
+				}("game over")
+				t.screen.Show()
 				os.Exit(0)
 			}
 			t.hasPendingPiece = ok
 		} else {
-			t.hasPendingPiece = t.MovePiece(KeyJ)
+			t.hasPendingPiece = t.MovePiece(tcell.KeyDown)
 		}
 		t.mux.Unlock()
 	}
 }
 
 func (t *Tetris) printBoard() {
+	// t.screen.Clear()
 	board := ""
 	for i := range t.rows {
 		board += t.printLine(i)
 	}
 	board += t.printLastLine()
-	fmt.Println(board)
+	t.drawText(board)
+	t.screen.Show()
+}
+
+func (t *Tetris) drawText(text string) {
+	row, col := 0, 0
+	for _, r := range []rune(text) {
+		if r == rune('\n') {
+			row++
+			col = 0
+			continue
+		}
+		t.screen.SetContent(col, row, r, nil, t.defStyle)
+		col++
+	}
 }
 
 func (t *Tetris) printLine(i int) string {
@@ -128,7 +170,7 @@ func (t *Tetris) printNextPiece(i int) string {
 		for j := range 5 {
 			foundPosition := false
 			for _, pos := range t.nextPiece {
-				if i-9 == pos.x && j == pos.y - 3 {
+				if i-9 == pos.x && j == pos.y-3 {
 					foundPosition = true
 				}
 			}
@@ -156,7 +198,7 @@ func (t *Tetris) printLastLine() string {
 func (t *Tetris) printOffset() string {
 	offset := ""
 	for range t.boardLeftOffset {
-		offset += fmt.Sprint("  ")
+		offset += "  "
 	}
 	return offset
 }
@@ -185,20 +227,20 @@ func (t *Tetris) canPlacePiece(p Piece) bool {
 	return true
 }
 
-func (t *Tetris) MovePiece(key int) bool {
+func (t *Tetris) MovePiece(key tcell.Key) bool {
 	if !t.hasPendingPiece {
 		return false
 	}
 	var newPiece Piece
 	newPiece = append(newPiece, t.currentPiece...)
 	switch key {
-	case KeyK, KeyW:
+	case tcell.KeyUp:
 		newPiece.rotate()
-	case KeyJ, KeyS:
+	case tcell.KeyDown:
 		newPiece.drop()
-	case KeyH, KeyA:
+	case tcell.KeyLeft:
 		newPiece.left()
-	case KeyL, KeyD:
+	case tcell.KeyRight:
 		newPiece.right()
 	}
 	return t.updatePiece(newPiece)
